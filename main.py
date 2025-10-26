@@ -7,14 +7,19 @@ from datetime import datetime
 from typing import Optional
 
 import requests
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, Router
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import BOT_TOKEN, OPENWEATHER_API_KEY, EXCHANGE_API_KEY
 from models import TaskStorage
 
 bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher(bot)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+router = Router()
 
 task_storage = TaskStorage()
 
@@ -23,7 +28,7 @@ start_time = time.time()
 
 TASKS_PER_PAGE = 10
 
-@dp.message_handler(commands=['start'])
+@router.message(Command("start"))
 async def start_command(message: Message):
     command_stats['start'] += 1
     await message.answer(
@@ -37,7 +42,7 @@ async def start_command(message: Message):
         "❓ /help - помощь"
     )
 
-@dp.message_handler(commands=['help'])
+@router.message(Command("help"))
 async def help_command(message: Message):
     command_stats['help'] += 1
     await message.answer(
@@ -51,7 +56,7 @@ async def help_command(message: Message):
         "📊 /stats - статистика работы бота"
     )
 
-@dp.message_handler(commands=['todo'])
+@router.message(Command("todo"))
 async def todo_command(message: Message):
     command_stats['todo'] += 1
     
@@ -124,14 +129,14 @@ async def show_tasks_list(message: Message, page: int = 0):
     
     await message.answer(text, reply_markup=reply_markup)
 
-@dp.callback_query_handler(lambda c: c.data.startswith("tasks_page_"))
+@router.callback_query(lambda c: c.data.startswith("tasks_page_"))
 async def handle_tasks_pagination(callback: CallbackQuery):
     page = int(callback.data.split("_")[-1])
     await callback.message.edit_text("")
     await show_tasks_list(callback.message, page)
     await callback.answer()
 
-@dp.message_handler(commands=['weather'])
+@router.message(Command("weather"))
 async def weather_command(message: Message):
     command_stats['weather'] += 1
     
@@ -196,7 +201,7 @@ async def get_weather(message: Message, city: str, retry_count: int = 3):
             else:
                 await message.answer(f"❌ Ошибка получения погоды: {str(e)}")
 
-@dp.message_handler(commands=['rate'])
+@router.message(Command("rate"))
 async def rate_command(message: Message):
     command_stats['rate'] += 1
     
@@ -291,11 +296,11 @@ async def analyze_file(message: Message):
     except Exception as e:
         await message.answer(f"❌ Ошибка обработки файла: {str(e)}")
 
-@dp.message_handler(content_types=['document', 'photo', 'video', 'audio'])
+@router.message(lambda message: message.document or message.photo or message.video or message.audio)
 async def handle_file(message: Message):
     await analyze_file(message)
 
-@dp.message_handler(commands=['fileinfo'])
+@router.message(Command("fileinfo"))
 async def fileinfo_command(message: Message):
     if not message.document and not message.photo and not message.video and not message.audio:
         await message.answer("❌ Отправьте файл для получения информации")
@@ -303,7 +308,7 @@ async def fileinfo_command(message: Message):
     
     await analyze_file(message)
 
-@dp.message_handler(commands=['stats'])
+@router.message(Command("stats"))
 async def stats_command(message: Message):
     command_stats['stats'] += 1
     
@@ -332,6 +337,7 @@ async def stats_command(message: Message):
 
 async def main():
     print("Bot УниПомощник запускается...")
+    dp.include_router(router)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
