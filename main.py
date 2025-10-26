@@ -26,10 +26,18 @@ task_storage = TaskStorage()
 command_stats = Counter()
 start_time = time.time()
 
+# Отслеживание уникальных пользователей
+unique_users = set()
+
 TASKS_PER_PAGE = 10
+
+def add_user(user_id: int):
+    """Добавляет пользователя в множество уникальных пользователей"""
+    unique_users.add(user_id)
 
 @router.message(Command("start"))
 async def start_command(message: Message):
+    add_user(message.from_user.id)
     command_stats['start'] += 1
     await message.answer(
         "👋 Привет! Я УниПомощник - ваш персональный помощник.\n\n"
@@ -44,6 +52,7 @@ async def start_command(message: Message):
 
 @router.message(Command("help"))
 async def help_command(message: Message):
+    add_user(message.from_user.id)
     command_stats['help'] += 1
     await message.answer(
         "📖 Помощь по командам:\n\n"
@@ -58,6 +67,7 @@ async def help_command(message: Message):
 
 @router.message(Command("todo"))
 async def todo_command(message: Message):
+    add_user(message.from_user.id)
     command_stats['todo'] += 1
     
     args = message.text.split()[1:] if len(message.text.split()) > 1 else []
@@ -138,6 +148,7 @@ async def handle_tasks_pagination(callback: CallbackQuery):
 
 @router.message(Command("weather"))
 async def weather_command(message: Message):
+    add_user(message.from_user.id)
     command_stats['weather'] += 1
     
     args = message.text.split()[1:] if len(message.text.split()) > 1 else []
@@ -203,6 +214,7 @@ async def get_weather(message: Message, city: str, retry_count: int = 3):
 
 @router.message(Command("rate"))
 async def rate_command(message: Message):
+    add_user(message.from_user.id)
     command_stats['rate'] += 1
     
     args = message.text.split()[1:] if len(message.text.split()) > 1 else []
@@ -298,10 +310,12 @@ async def analyze_file(message: Message):
 
 @router.message(lambda message: message.document or message.photo or message.video or message.audio)
 async def handle_file(message: Message):
+    add_user(message.from_user.id)
     await analyze_file(message)
 
 @router.message(Command("fileinfo"))
 async def fileinfo_command(message: Message):
+    add_user(message.from_user.id)
     if not message.document and not message.photo and not message.video and not message.audio:
         await message.answer("❌ Отправьте файл для получения информации")
         return
@@ -310,6 +324,7 @@ async def fileinfo_command(message: Message):
 
 @router.message(Command("stats"))
 async def stats_command(message: Message):
+    add_user(message.from_user.id)
     command_stats['stats'] += 1
     
     uptime_seconds = int(time.time() - start_time)
@@ -317,7 +332,7 @@ async def stats_command(message: Message):
     uptime_minutes = (uptime_seconds % 3600) // 60
     uptime_seconds = uptime_seconds % 60
     
-    unique_users = len(set())
+    unique_users_count = len(unique_users)
     
     total_commands = sum(command_stats.values())
     commands_text = "\n".join([f"• {cmd}: {count}" for cmd, count in command_stats.most_common()])
@@ -327,7 +342,7 @@ async def stats_command(message: Message):
     stats_text = (
         f"📊 Статистика бота:\n\n"
         f"⏰ Время работы: {uptime_hours:02d}:{uptime_minutes:02d}:{uptime_seconds:02d}\n"
-        f"👥 Уникальных пользователей: {unique_users}\n"
+        f"👥 Уникальных пользователей: {unique_users_count}\n"
         f"📈 Всего команд выполнено: {total_commands}\n\n"
         f"📋 Статистика команд:\n{commands_text}\n\n"
         f"💾 Размер хранилища: {storage_size:.2f} КБ"
